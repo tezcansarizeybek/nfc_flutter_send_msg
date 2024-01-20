@@ -1,5 +1,8 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:nfc_host_card_emulation/nfc_host_card_emulation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 late NfcState nfcState;
 void main() async {
@@ -38,14 +41,14 @@ class _MyHomePageState extends State<MyHomePage> {
 
   final port = 0;
 //Data to transmit
-  final data = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+  var data = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
 
   NfcApduCommand? nfcApduCommand;
 
   @override
   void initState() {
     super.initState();
-
+    getSharedPrefs();
     NfcHce.stream.listen((command) {
       setState(() => nfcApduCommand = command);
     });
@@ -58,53 +61,69 @@ class _MyHomePageState extends State<MyHomePage> {
           backgroundColor: Theme.of(context).colorScheme.inversePrimary,
           title: Text(widget.title),
         ),
-        body: nfcState == NfcState.enabled
-            ? Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                    Text(
-                      'NFC Durumu: ${nfcState.name}',
-                      style: const TextStyle(fontSize: 20),
+        body: Center(
+          child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                Text(
+                  'NFC Durumu: ${nfcState.name}',
+                  style: const TextStyle(fontSize: 20),
+                ),
+                SizedBox(
+                  height: 150,
+                  width: 300,
+                  child: ElevatedButton(
+                    style: ButtonStyle(
+                      backgroundColor: MaterialStateProperty.all(
+                        apduAdded ? Colors.redAccent : Colors.greenAccent,
+                      ),
                     ),
-                    SizedBox(
-                      height: 200,
-                      width: 300,
-                      child: ElevatedButton(
-                        style: ButtonStyle(
-                          backgroundColor: MaterialStateProperty.all(
-                            apduAdded ? Colors.redAccent : Colors.greenAccent,
-                          ),
-                        ),
-                        onPressed: () async {
-                          if (apduAdded == false) {
-                            await NfcHce.addApduResponse(port, data);
-                          } else {
-                            await NfcHce.removeApduResponse(port);
-                          }
-                          setState(() => apduAdded = !apduAdded);
-                        },
-                        child: FittedBox(
-                          child: Text(
-                            apduAdded
-                                ? 'remove\n$data\nfrom\nport $port'
-                                : 'add\n$data\nto\nport $port',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 26,
-                              color: apduAdded ? Colors.white : Colors.black,
-                            ),
-                          ),
+                    onPressed: () async {
+                      if (apduAdded == false) {
+                        await NfcHce.addApduResponse(port, data);
+                      } else {
+                        await NfcHce.removeApduResponse(port);
+                      }
+                      setState(() => apduAdded = !apduAdded);
+                    },
+                    child: FittedBox(
+                      child: Text(
+                        apduAdded
+                            ? 'remove\n$data\nfrom\nport $port'
+                            : 'add\n$data\nto\nport $port',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 26,
+                          color: apduAdded ? Colors.white : Colors.black,
                         ),
                       ),
-                    )
-                  ])
-            : Center(
-                child: Text(
-                'Oh no...\nNFC is ${nfcState.name}',
-                style: const TextStyle(fontSize: 20),
-                textAlign: TextAlign.center,
-              ) // This trailing comma makes auto-formatting nicer for build methods.
-                ));
+                    ),
+                  ),
+                )
+              ]),
+        ));
+  }
+
+  getSharedPrefs() async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    List<String> uuidString = prefs.getStringList("uuid") ?? [];
+    List<int> uuid = [];
+    if (uuidString.isEmpty) {
+      for (int i = 0; i < 12; i++) {
+        int rndNumber = Random().nextInt(100);
+        uuid.add(rndNumber);
+        uuidString.add(rndNumber.toString());
+      }
+      await prefs.setStringList("uuid", uuidString);
+    } else {
+      for (var e in uuidString) {
+        uuid.add(int.tryParse(e) ?? 0);
+      }
+    }
+    setState(() {
+      data = uuid;
+    });
+    return uuid;
   }
 }
